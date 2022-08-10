@@ -8,18 +8,21 @@ end
 
 function M.infer_type(param)
   local type = param.type or "any"
+
   if type == "" then
     type = "any"
   end
+
   if type == "any" then
     if param.name == "fn" then
       type = "fun(...)"
     elseif param.name == "args" or param.name == "list" then
-      type = "any[]"
+      type = "any"
     elseif param.name == "dict" then
       type = "dictionary"
     end
   end
+
   if type == "arrayof(string)" then
     type = "string[]"
   elseif type == "arrayof(integer, 2)" then
@@ -27,26 +30,32 @@ function M.infer_type(param)
   elseif type == "dictionaryof(luaref)" then
     type = "table<string, luaref>"
   end
+
   return type
 end
 
 function M.emmy_param(param, is_return)
   local type = M.infer_type(param)
   local parts = {}
+
   if param.name and param.name ~= "..." then
     table.insert(parts, param.name)
   end
+
   if type then
+    if not is_return then
+      type = type .. "?"
+    end
+
     table.insert(parts, type)
   end
+
   if param.doc then
     table.insert(parts, "#" .. param.doc)
   end
 
-  if not param.doc and type == "any" then
-    return ""
-  end
   local ret = table.concat(parts, " ")
+
   if is_return then
     return M.comment("@return " .. ret, "---") .. "\n"
   elseif param.name == "..." then
@@ -115,7 +124,14 @@ function M.emmy(fun)
     table.insert(params, param.name)
     ret = ret .. M.emmy_param(param)
   end
-  for _, r in pairs(fun["return"]) do
+
+  local rets = fun["return"]
+
+  if #vim.tbl_keys(rets) == 0 then
+    table.insert(rets, "any")
+  end
+
+  for _, r in pairs(rets) do
     ret = ret .. M.emmy_param(r, true)
   end
 
